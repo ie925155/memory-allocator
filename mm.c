@@ -500,8 +500,8 @@ static void split_block(block_t *block, size_t asize)
         write_footer(block, asize, true);
 
         block_next = find_next(block);
-        write_footer(block_next, block_size - asize, false);
         write_header(block_next, block_size - asize, false);
+        write_footer(block_next, block_size - asize, false);
     }
 
     dbg_ensures(get_alloc(block));
