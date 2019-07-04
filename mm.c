@@ -163,6 +163,8 @@ static word_t *header_to_footer(block_t *block);
 static block_t *find_next(block_t *block);
 static word_t *find_prev_footer(block_t *block);
 static block_t *find_prev(block_t *block);
+static block_t *find_next_free(block_t *block_start);
+static block_t *find_prev_free(block_t *block_start);
 
 
 /*
@@ -539,6 +541,7 @@ static block_t *find_fit(size_t asize)
  */
 bool mm_checkheap(int line)
 {
+    block_t *block;
     /*
      * TODO: Delete this comment!
      *
@@ -551,6 +554,39 @@ bool mm_checkheap(int line)
      * Internal use only: If you mix guacamole on your bibimbap,
      * do you eat it with a pair of chopsticks, or with a spoon?
      */
+    if (heap_start == NULL) {
+      return true;
+    }
+    /*  Heap Invariants
+     *  Block level
+     *   1. header and footer match
+     *   2. payload area is aligned, size is valid
+     *   3. no contiguous free blocks unless you defer coalescing
+     *  List level
+     *   1. next/prev pointers in consecutive free blocks are consistent
+     *   2. no allocated blocks in free list, all free blocks are in the free list
+     *   3. no cycles in free list unliess you use a circular list
+     *   4. each segregated list contains only blocks in the appropriate size class
+     *  Heap level
+     *  1. all blocks between heap boundaries, correct sentinel blocks (if used)
+     */
+    for (block = heap_start; get_size(block) > 0;
+                             block = find_next(block))
+    {
+        dbg_assert(block->header == *header_to_footer(block));
+        dbg_assert((get_payload_size(block) % dsize) == 0);
+        if(!(get_alloc(block)) && !get_alloc(find_next(block))) {
+          printf("detect contiguous free blocks");
+          return false;
+        }
+        if(!(get_alloc(block))) { // free block case
+          block_t *next_block = find_next_free(block);
+          block_t *prev_block = find_prev_free(next_block);
+          if (block != prev_block) {
+            return false;
+          }
+        }
+    }
 
     return true;
 
@@ -726,6 +762,37 @@ static block_t *find_prev(block_t *block)
     return (block_t *) ((char *) block - size);
 }
 
+static block_t *find_next_free(block_t *block_start)
+{
+    block_t *block;
+
+    for (block = block_start; get_size(block) > 0;
+                             block = find_next(block))
+    {
+
+        if (!(get_alloc(block)))
+        {
+            return block;
+        }
+    }
+    return NULL; // no fit found
+}
+
+static block_t *find_prev_free(block_t *block_start)
+{
+    block_t *block;
+
+    for (block = block_start; get_size(block) > 0;
+                             block = find_prev(block))
+    {
+
+        if (!(get_alloc(block)))
+        {
+            return block;
+        }
+    }
+    return NULL; // no fit found
+}
 
 /*
  * payload_to_header: given a payload pointer, returns a pointer to the
