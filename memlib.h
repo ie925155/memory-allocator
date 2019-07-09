@@ -2,10 +2,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-void mem_init(bool sparse);               
+void mem_init(bool sparse);
 void mem_deinit(void);
 void *mem_sbrk(intptr_t incr);
-void mem_reset_brk(void); 
+void mem_reset_brk(void);
 void *mem_heap_lo(void);
 void *mem_heap_hi(void);
 size_t mem_heapsize(void);
@@ -29,3 +29,5 @@ void *mem_memset(void *dst, int c, size_t n);
 
 /* Debugging function to view region of heap */
 void hprobe(void *ptr, int offset, size_t count);
+
+unsigned char *mem_get_max_addr(void);

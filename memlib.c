@@ -50,7 +50,7 @@ static void *page_start(size_t id);
 static void *get_mem(const void *addr);
 static void print_stats();
 
-/* 
+/*
  * mem_init - initialize the memory system model
  */
 void mem_init(bool do_sparse){
@@ -100,7 +100,7 @@ void mem_init(bool do_sparse){
     mem_reset_brk();
 }
 
-/* 
+/*
  * mem_deinit - free the storage used by the memory system model
  */
 void mem_deinit(void){
@@ -128,8 +128,8 @@ void mem_reset_brk(){
     mem_brk = heap;
 }
 
-/* 
- * mem_sbrk - simple model of the sbrk function. Extends the heap 
+/*
+ * mem_sbrk - simple model of the sbrk function. Extends the heap
  *                by incr bytes and returns the start address of the new area. In
  *                this model, the heap cannot be shrunk.
  */
@@ -164,7 +164,7 @@ void *mem_heap_lo(){
     return (void *) heap;
 }
 
-/* 
+/*
  * mem_heap_hi - return address of last heap byte
  */
 void *mem_heap_hi(){
@@ -191,7 +191,7 @@ __int128 mem_read128(const void* addr)
 {
     __int128 r;
     r = (((__int128)mem_read((char*)addr + 8, 8))<<64) | mem_read(addr, 8);
-    
+
     return r;
 }
 
@@ -303,7 +303,7 @@ void *mem_memset(void *dst, int c, size_t n) {
         dst = (void *) ((unsigned char *) dst + w);
     }
     if (n) {
-        mem_write(dst, data, n);        
+        mem_write(dst, data, n);
     }
     return savedst;
 }
@@ -386,3 +386,6 @@ static void *get_mem(const void *addr) {
     return (void *) &block->bytes[offset];
 }
 
+unsigned char *mem_get_max_addr(void) {
+    return mem_max_addr;
+}

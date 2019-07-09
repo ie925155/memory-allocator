@@ -576,7 +576,7 @@ bool mm_checkheap(int line)
         dbg_assert(block->header == *header_to_footer(block));
         dbg_assert((get_payload_size(block) % dsize) == 0);
         if(!(get_alloc(block)) && !get_alloc(find_next(block))) {
-          printf("detect contiguous free blocks");
+          printf("detect contiguous free blocks\n");
           return false;
         }
         if(!(get_alloc(block))) { // free block case
@@ -585,6 +585,10 @@ bool mm_checkheap(int line)
           if (block != prev_block) {
             return false;
           }
+        }
+        if ((unsigned char *)block > mem_get_max_addr()) {
+            printf("detect block addr out of max address boundary\n");
+            return false;
         }
     }
 
