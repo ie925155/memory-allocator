@@ -36,39 +36,38 @@ double cpu_mhz = 0.0;
 /* Get megahertz from /etc/proc */
 #define MAXBUF 512
 
-
 double core_mhz(int verbose) {
-    static char buf[MAXBUF];
-    FILE *fp = fopen("/proc/cpuinfo", "r");
-    cpu_mhz = 0.0;
+  static char buf[MAXBUF];
+  FILE* fp = fopen("/proc/cpuinfo", "r");
+  cpu_mhz = 0.0;
 
-    if (!fp) {
-        fprintf(stderr, "Can't open /proc/cpuinfo to get clock information\n");
-        cpu_mhz = 1000.0;
-        return cpu_mhz;
-    }
-    while (fgets(buf, MAXBUF, fp)) {
-        if (strstr(buf, "cpu MHz")) {
-            double cpu_mhz = 0.0;
-            sscanf(buf, "cpu MHz\t: %lf", &cpu_mhz);
-            break;
-        }
-    }
-    fclose(fp);
-    if (cpu_mhz == 0.0) {
-        fprintf(stderr, "Can't open /proc/cpuinfo to get clock information\n");
-        cpu_mhz = 1000.0;
-        return cpu_mhz;
-    }
-    if (verbose) {
-        printf("Processor Clock Rate ~= %.4f GHz (extracted from file)\n", cpu_mhz * 0.001);
-    }
+  if (!fp) {
+    fprintf(stderr, "Can't open /proc/cpuinfo to get clock information\n");
+    cpu_mhz = 1000.0;
     return cpu_mhz;
+  }
+  while (fgets(buf, MAXBUF, fp)) {
+    if (strstr(buf, "cpu MHz")) {
+      double cpu_mhz = 0.0;
+      sscanf(buf, "cpu MHz\t: %lf", &cpu_mhz);
+      break;
+    }
+  }
+  fclose(fp);
+  if (cpu_mhz == 0.0) {
+    fprintf(stderr, "Can't open /proc/cpuinfo to get clock information\n");
+    cpu_mhz = 1000.0;
+    return cpu_mhz;
+  }
+  if (verbose) {
+    printf("Processor Clock Rate ~= %.4f GHz (extracted from file)\n", cpu_mhz * 0.001);
+  }
+  return cpu_mhz;
 }
 
 double mhz(int verbose) {
-    double val = core_mhz(verbose);
-    return val;
+  double val = core_mhz(verbose);
+  return val;
 }
 
 #ifdef USE_TOD
@@ -84,38 +83,37 @@ struct timespec new_time;
 #define CLKT CLOCK_THREAD_CPUTIME_ID
 #endif
 
-
-void start_timer()
-{
-    int rval;
+void start_timer() {
+  int rval;
 #ifdef USE_TOD
-    rval = gettimeofday(&last_time, NULL);
+  rval = gettimeofday(&last_time, NULL);
 #else
-    rval = clock_gettime(CLKT, &last_time);
-#endif    
-    if (rval != 0) {
-        fprintf(stderr, "Couldn't get time\n");
-        exit(1);
-    }
+  rval = clock_gettime(CLKT, &last_time);
+#endif
+  if (rval != 0) {
+    fprintf(stderr, "Couldn't get time\n");
+    exit(1);
+  }
 }
 
-double get_timer()
-{
-    int rval;
-    double delta_secs = 0.0;
+double get_timer() {
+  int rval;
+  double delta_secs = 0.0;
 #ifdef USE_TOD
-    rval = gettimeofday(&new_time, NULL);
+  rval = gettimeofday(&new_time, NULL);
 #else
-    rval = clock_gettime(CLKT, &new_time);
-#endif    
-    if (rval != 0) {
-        fprintf(stderr, "Couldn't get time\n");
-        exit(1);
-    }
+  rval = clock_gettime(CLKT, &new_time);
+#endif
+  if (rval != 0) {
+    fprintf(stderr, "Couldn't get time\n");
+    exit(1);
+  }
 #ifdef USE_TOD
-    delta_secs = 1.0 * (new_time.tv_sec - last_time.tv_sec) + 1e-6 * (new_time.tv_usec - last_time.tv_usec);
+  delta_secs =
+      1.0 * (new_time.tv_sec - last_time.tv_sec) + 1e-6 * (new_time.tv_usec - last_time.tv_usec);
 #else
-    delta_secs = 1.0 * (new_time.tv_sec - last_time.tv_sec) + 1e-9 * (new_time.tv_nsec - last_time.tv_nsec);
+  delta_secs =
+      1.0 * (new_time.tv_sec - last_time.tv_sec) + 1e-9 * (new_time.tv_nsec - last_time.tv_nsec);
 #if 0
     printf("Delta %ld.%ld --> %ld.%ld (%ld + 1e-9*%ld = %.f)\n",
            (long) last_time.tv_sec, (long) last_time.tv_nsec,
@@ -124,20 +122,16 @@ double get_timer()
            (long) (new_time.tv_nsec - last_time.tv_nsec),
            delta_secs);
 #endif
-#endif    
-    return delta_secs;
+#endif
+  return delta_secs;
 }
 
-void start_counter()
-{
-    if (cpu_mhz == 0.0)
-        mhz(gverbose);
-    start_timer();
+void start_counter() {
+  if (cpu_mhz == 0.0) mhz(gverbose);
+  start_timer();
 }
 
-double get_counter()
-{
-    double delta_secs = get_timer();
-    return delta_secs * cpu_mhz * 1e6;
+double get_counter() {
+  double delta_secs = get_timer();
+  return delta_secs * cpu_mhz * 1e6;
 }
-
