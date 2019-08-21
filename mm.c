@@ -420,6 +420,10 @@ static block_t* coalesce_block(block_t* block) {
   if (prev_alloc && next_alloc)  // Case 1
   {
     // Nothing to do
+    ((word_t*)header_to_payload(block))[0] = (word_t)free_list_head;
+    ((word_t*)header_to_payload(block))[1] = (word_t)NULL;
+    ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block;
+    free_list_head = block;
   }
 
   else if (prev_alloc && !next_alloc)  // Case 2
@@ -427,6 +431,16 @@ static block_t* coalesce_block(block_t* block) {
     size += get_size(block_next);
     write_header(block, size, false);
     write_footer(block, size, false);
+
+    block_t* next_block = (block_t*)((word_t*)header_to_payload(block_next))[0];
+    block_t* prev_block = (block_t*)((word_t*)header_to_payload(block_next))[1];
+    ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+    ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+
+    //splice out adjacent successor block, coalsece both memory blocks
+    ((word_t*)header_to_payload(block))[0] = (word_t)free_list_head;
+    ((word_t*)header_to_payload(free_list_head))[1] =  (word_t)block;
+    free_list_head = block;
   }
 
   else if (!prev_alloc && next_alloc)  // Case 3
@@ -434,7 +448,16 @@ static block_t* coalesce_block(block_t* block) {
     size += get_size(block_prev);
     write_header(block_prev, size, false);
     write_footer(block_prev, size, false);
-    block = block_prev;
+
+    block_t* next_block = (block_t*)((word_t*)header_to_payload(block_prev))[0];
+    block_t* prev_block = (block_t*)((word_t*)header_to_payload(block_prev))[1];
+    ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+    ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+
+    ((word_t*)header_to_payload(block_prev))[0] = (word_t)free_list_head;
+    ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block_prev;
+
+    free_list_head = block_prev;
   }
 
   else  // Case 4
@@ -442,7 +465,21 @@ static block_t* coalesce_block(block_t* block) {
     size += get_size(block_next) + get_size(block_prev);
     write_header(block_prev, size, false);
     write_footer(block_prev, size, false);
-    block = block_prev;
+
+    block_t* next_block = (block_t*)((word_t*)header_to_payload(block_prev))[0];
+    block_t* prev_block = (block_t*)((word_t*)header_to_payload(block_prev))[1];
+    ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+    ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+
+    next_block = (block_t*)((word_t*)header_to_payload(block_next))[0];
+    prev_block = (block_t*)((word_t*)header_to_payload(block_next))[1];
+    ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+    ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+
+    ((word_t*)header_to_payload(block_prev))[0] = (word_t)free_list_head;
+    ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block_prev;
+
+    free_list_head = block_prev;
   }
 
   dbg_ensures(!get_alloc(block));
