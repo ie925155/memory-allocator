@@ -483,6 +483,8 @@ static void split_block(block_t* block, size_t asize) {
     if (next_block != NULL) {
       ((word_t*)header_to_payload(block_next))[0] = (word_t)next_block;
       ((word_t*)header_to_payload(next_block))[1] = (word_t)block_next;
+    } else {
+      ((word_t*)header_to_payload(block_next))[0] = (word_t)NULL;
     }
   }
 
@@ -500,7 +502,7 @@ static block_t* find_fit(size_t asize) {
 
   for (block = free_list_head; get_size(block) > 0;
        block = (block_t*)((word_t*)header_to_payload(block))[0]) {
-    if (!(get_alloc(block)) && (asize <= get_size(block))) {
+    if (block != NULL && !(get_alloc(block)) && (asize <= get_size(block))) {
       return block;
     }
   }
