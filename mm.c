@@ -602,6 +602,14 @@ bool mm_checkheap(int line) {
     }
   }
 
+  for (block = free_list_head; get_size(block) > 0;
+    block = (block_t*)((word_t*)header_to_payload(block))[0]) {
+    if (get_alloc(block)) {
+      printf("free list has allocated block block=%p\n", block);
+      return false;
+    }
+  }
+
   return true;
 }
 
