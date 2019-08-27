@@ -161,6 +161,8 @@ static block_t* find_prev(block_t* block);
 static block_t* find_next_free(block_t* block_start);
 static block_t* find_prev_free(block_t* block_start);
 
+static bool has_loop(block_t* block);
+
 /*
  * <What does this function do?>
  * <What are the function's arguments?>
@@ -602,10 +604,15 @@ bool mm_checkheap(int line) {
     }
   }
 
+  if(has_loop(free_list_head)) {
+    printf("detect free list has loop\n");
+    return false;
+  }
+
   for (block = free_list_head; get_size(block) > 0;
     block = (block_t*)((word_t*)header_to_payload(block))[0]) {
     if (get_alloc(block)) {
-      printf("free list has allocated block block=%p\n", block);
+      printf("detect free list has allocated block block=%p\n", block);
       return false;
     }
   }
@@ -800,4 +807,33 @@ static void* header_to_payload(block_t* block) {
  */
 static word_t* header_to_footer(block_t* block) {
   return (word_t*)(block->payload + get_size(block) - dsize);
+}
+
+static bool has_loop(block_t* block) {
+  if (block == NULL) {
+    return false;
+  }
+  block_t *slow, *fast;
+  slow = fast = block;
+
+  while(true) {
+    slow = (block_t*)((word_t*)header_to_payload(slow))[0]; // 1 hops
+
+    // 2 hops
+    block_t* fast_next = (block_t*)((word_t*)header_to_payload(fast))[0];
+    if (fast_next != NULL) {
+      fast = (block_t*)((word_t*)header_to_payload(fast_next))[0];
+    } else {
+      return false;
+    }
+
+    if (slow == NULL || fast == NULL) {
+      return false;
+    }
+
+    if (slow == fast) {
+        return true;
+    }
+  }
+
 }
