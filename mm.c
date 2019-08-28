@@ -170,6 +170,7 @@ static bool has_loop(block_t* block);
  * <Are there any preconditions or postconditions?>
  */
 bool mm_init(void) {
+  printf("%s \n", __func__);
   // Create the initial empty heap
   word_t* start = (word_t*)(mem_sbrk(2 * wsize));
 
@@ -205,6 +206,7 @@ bool mm_init(void) {
  * <Are there any preconditions or postconditions?>
  */
 void* malloc(size_t size) {
+  printf("---------- %s size=%zu ----------\n", __func__, size);
   dbg_requires(mm_checkheap(__LINE__));
 
   size_t asize;       // Adjusted block size
@@ -245,6 +247,7 @@ void* malloc(size_t size) {
 
   // Mark block as allocated
   size_t block_size = get_size(block);
+  printf("%s block_size=%zu\n" , __func__, block_size);
   write_header(block, block_size, true);
   write_footer(block, block_size, true);
 
@@ -252,6 +255,7 @@ void* malloc(size_t size) {
   split_block(block, asize);
 
   bp = header_to_payload(block);
+  printf("%s bp=%p get_size=0x%zX\n", __func__, bp, get_size(block));
 
   /* TODO: Can you write a postcondition about the alignment of bp? */
   dbg_ensures(mm_checkheap(__LINE__));
@@ -265,6 +269,7 @@ void* malloc(size_t size) {
  * <Are there any preconditions or postconditions?>
  */
 void free(void* bp) {
+  printf("---------- %s bp=%p ----------\n", __func__, bp);
   dbg_requires(mm_checkheap(__LINE__));
 
   if (bp == NULL) {
@@ -365,6 +370,7 @@ void* calloc(size_t elements, size_t size) {
  * <Are there any preconditions or postconditions?>
  */
 static block_t* extend_heap(size_t size) {
+  printf("%s size=%zu \n", __func__, size);
   void* bp;
 
   // Allocate an even number of words to maintain alignment
@@ -384,10 +390,12 @@ static block_t* extend_heap(size_t size) {
   block_t* block = payload_to_header(bp);
   write_header(block, size, false);
   write_footer(block, size, false);
+  printf("%s new block %p \n", __func__, block);
 
   // Create new epilogue header
   block_t* block_next = find_next(block);
   write_header(block_next, 0, true);
+  printf("%s new epilogue at %p \n", __func__, block_next);
 
   // Coalesce in case the previous block was free
   block = coalesce_block(block);
@@ -402,6 +410,7 @@ static block_t* extend_heap(size_t size) {
  * <Are there any preconditions or postconditions?>
  */
 static block_t* coalesce_block(block_t* block) {
+  printf("%s block=%p\n", __func__, block);
   dbg_requires(!get_alloc(block));
 
   size_t size = get_size(block);
@@ -415,17 +424,22 @@ static block_t* coalesce_block(block_t* block) {
 
   block_t* block_next = find_next(block);
   block_t* block_prev = find_prev(block);
+  printf("%s block_next=%p block_prev=%p\n", __func__, block_next, block_prev);
 
   bool prev_alloc = extract_alloc(*find_prev_footer(block));
+  size_t prev_size = extract_size(*find_prev_footer(block));
   bool next_alloc = get_alloc(block_next);
+  size_t next_size = get_size(block_next);
+  printf("%s prev_alloc=%d prev_size=%zu\n", __func__, prev_alloc, prev_size);
+  printf("%s next_alloc=%d next_size=%zu\n", __func__, next_alloc, next_size);
 
   if (prev_alloc && next_alloc)  // Case 1
   {
-    // Nothing to do
-    ((word_t*)header_to_payload(block))[0] = (word_t)free_list_head;
-    ((word_t*)header_to_payload(block))[1] = (word_t)NULL;
-    ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block;
-    free_list_head = block;
+    if (prev_size != 0 || next_size != 0) {
+      ((word_t*)header_to_payload(block))[0] = (word_t)free_list_head;
+      ((word_t*)header_to_payload(block))[1] = (word_t)NULL;
+      ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block;
+    }
   }
 
   else if (prev_alloc && !next_alloc)  // Case 2
@@ -436,30 +450,50 @@ static block_t* coalesce_block(block_t* block) {
 
     block_t* next_block = (block_t*)((word_t*)header_to_payload(block_next))[0];
     block_t* prev_block = (block_t*)((word_t*)header_to_payload(block_next))[1];
-    ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
-    ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
-
+    printf("%s next_block=%p prev_block=%p\n", __func__, next_block, prev_block);
+    if (prev_block != NULL) {
+      ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+    }
+    if (next_block != NULL) {
+      ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+    }
     //splice out adjacent successor block, coalsece both memory blocks
-    ((word_t*)header_to_payload(block))[0] = (word_t)free_list_head;
-    ((word_t*)header_to_payload(free_list_head))[1] =  (word_t)block;
-    free_list_head = block;
+    printf("%s block=%p, free_list_head=%p, block_next=%p\n", __func__, block, free_list_head, block_next);
+    if (block_next == free_list_head) {
+      ((word_t*)header_to_payload(block))[0] = (word_t)((word_t*)header_to_payload(free_list_head))[0];
+    } else {
+      ((word_t*)header_to_payload(block))[0] = (word_t)free_list_head;
+      ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block;
+    }
+    ((word_t*)header_to_payload(block))[1] = (word_t)NULL;
   }
 
   else if (!prev_alloc && next_alloc)  // Case 3
   {
     size += get_size(block_prev);
+    printf("%s size=%zu\n", __func__, size);
     write_header(block_prev, size, false);
     write_footer(block_prev, size, false);
 
     block_t* next_block = (block_t*)((word_t*)header_to_payload(block_prev))[0];
     block_t* prev_block = (block_t*)((word_t*)header_to_payload(block_prev))[1];
-    ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
-    ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+    printf("%s next_block=%p prev_block=%p\n", __func__, next_block, prev_block);
+    if (prev_block != NULL) {
+      ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+    }
+    if (next_block != NULL) {
+      ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+    }
+    printf("%s block_prev=%p, free_list_head=%p \n", __func__, block_prev, free_list_head);
+    if (block_prev == free_list_head) {
+      ((word_t*)header_to_payload(block_prev))[0] = (word_t)NULL;
+    } else {
+      ((word_t*)header_to_payload(block_prev))[0] = (word_t)free_list_head;
+      ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block_prev;
+    }
+    ((word_t*)header_to_payload(block_prev))[1] = (word_t)NULL;
 
-    ((word_t*)header_to_payload(block_prev))[0] = (word_t)free_list_head;
-    ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block_prev;
-
-    free_list_head = block_prev;
+    block = block_prev;
   }
 
   else  // Case 4
@@ -470,19 +504,36 @@ static block_t* coalesce_block(block_t* block) {
 
     block_t* next_block = (block_t*)((word_t*)header_to_payload(block_prev))[0];
     block_t* prev_block = (block_t*)((word_t*)header_to_payload(block_prev))[1];
-    ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
-    ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+    printf("%s block_prev[0]=next_block=%p block_prev[1]=prev_block=%p\n", __func__, next_block,
+      prev_block);
+    if (prev_block != NULL) {
+      ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+    }
+    if (next_block != NULL) {
+      ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+    }
 
     next_block = (block_t*)((word_t*)header_to_payload(block_next))[0];
     prev_block = (block_t*)((word_t*)header_to_payload(block_next))[1];
-    ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
-    ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+    printf("%s block_next[0]=next_block=%p block_next[1]=prev_block=%p\n", __func__, next_block,
+      prev_block);
+    if (prev_block && next_block != NULL) {
+      ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+      ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+    }
 
-    ((word_t*)header_to_payload(block_prev))[0] = (word_t)free_list_head;
-    ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block_prev;
+    if (block_prev == free_list_head) {
+      ((word_t*)header_to_payload(block_prev))[0] = (word_t)NULL;
+    } else {
+      ((word_t*)header_to_payload(block_prev))[0] = (word_t)free_list_head;
+      ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block_prev;
+    }
+    ((word_t*)header_to_payload(block_prev))[1] = (word_t)NULL;
 
-    free_list_head = block_prev;
+    block = block_prev;
   }
+  free_list_head = block;
+  printf("%s free_list_head=%p \n", __func__, free_list_head);
 
   dbg_ensures(!get_alloc(block));
   /* TODO: Can you write a postcondition about get_size(block)? */
@@ -497,6 +548,7 @@ static block_t* coalesce_block(block_t* block) {
  * <Are there any preconditions or postconditions?>
  */
 static void split_block(block_t* block, size_t asize) {
+  printf("%s block=%p asize=0x%zX \n", __func__, block, asize);
   dbg_requires(get_alloc(block));
   /* TODO: Can you write a precondition about the value of asize? */
 
@@ -512,20 +564,25 @@ static void split_block(block_t* block, size_t asize) {
     write_footer(block_next, block_size - asize, false);
     // rebinding prev/next block relationship
     block_t* prev_block = (block_t*)((word_t*)header_to_payload(block))[1];
+    printf("%s block=%p prev_block=%p \n", __func__, block, prev_block);
     if (prev_block != NULL) {
       ((word_t*)header_to_payload(prev_block))[0] = (word_t)block_next;
       ((word_t*)header_to_payload(block_next))[1] = (word_t)prev_block;
     } else {
       free_list_head = block_next;
+      ((word_t*)header_to_payload(block_next))[1] = (word_t)NULL;
     }
     block_t* next_block = (block_t*)((word_t*)header_to_payload(block))[0];
-    if (next_block != NULL) {
+    if (next_block != NULL && block_next != next_block) {
+      printf("%s, next_block=%p block_next=%p size=%zu\n", __func__, next_block, block_next,
+        get_size(next_block));
       ((word_t*)header_to_payload(block_next))[0] = (word_t)next_block;
       ((word_t*)header_to_payload(next_block))[1] = (word_t)block_next;
     } else {
       ((word_t*)header_to_payload(block_next))[0] = (word_t)NULL;
     }
   }
+  printf("%s free_list_head=%p \n", __func__, free_list_head);
 
   dbg_ensures(get_alloc(block));
 }
@@ -537,11 +594,13 @@ static void split_block(block_t* block, size_t asize) {
  * <Are there any preconditions or postconditions?>
  */
 static block_t* find_fit(size_t asize) {
+  printf("%s asize=%zu\n", __func__, asize);
   block_t* block;
 
-  for (block = free_list_head; get_size(block) > 0;
+  for (block = free_list_head; (block != NULL && get_size(block) > 0);
        block = (block_t*)((word_t*)header_to_payload(block))[0]) {
-    if (block != NULL && !(get_alloc(block)) && (asize <= get_size(block))) {
+    if (!(get_alloc(block)) && (asize <= get_size(block))) {
+      printf("%s find a block at %p\n", __func__, block);
       return block;
     }
   }
@@ -555,6 +614,7 @@ static block_t* find_fit(size_t asize) {
  * <Are there any preconditions or postconditions?>
  */
 bool mm_checkheap(int line) {
+  printf("%s line=%d\n", __func__, line);
   block_t* block;
   /*
    * TODO: Delete this comment!
@@ -609,8 +669,9 @@ bool mm_checkheap(int line) {
     return false;
   }
 
-  for (block = free_list_head; get_size(block) > 0;
+  for (block = free_list_head; (block != NULL && get_size(block) > 0);
     block = (block_t*)((word_t*)header_to_payload(block))[0]) {
+    printf("%s free list block=%p\n", __func__, block);
     if (get_alloc(block)) {
       printf("detect free list has allocated block block=%p\n", block);
       return false;
@@ -810,6 +871,7 @@ static word_t* header_to_footer(block_t* block) {
 }
 
 static bool has_loop(block_t* block) {
+  printf("%s block=%p \n", __func__, block);
   if (block == NULL) {
     return false;
   }
@@ -826,13 +888,13 @@ static bool has_loop(block_t* block) {
     } else {
       return false;
     }
+    printf("slow=%p fast=%p \n", slow, fast);
 
     if (slow == NULL || fast == NULL) {
       return false;
     }
-
     if (slow == fast) {
-        return true;
+      return true;
     }
   }
 
