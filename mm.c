@@ -206,7 +206,7 @@ bool mm_init(void) {
  * <Are there any preconditions or postconditions?>
  */
 void* malloc(size_t size) {
-  printf("---------- %s size=%zu ----------\n", __func__, size);
+  printf("-------------------- %s size=%zu --------------------\n", __func__, size);
   dbg_requires(mm_checkheap(__LINE__));
 
   size_t asize;       // Adjusted block size
@@ -247,7 +247,7 @@ void* malloc(size_t size) {
 
   // Mark block as allocated
   size_t block_size = get_size(block);
-  printf("%s block_size=%zu\n" , __func__, block_size);
+  printf("%s block_size=%zX\n" , __func__, block_size);
   write_header(block, block_size, true);
   write_footer(block, block_size, true);
 
@@ -269,7 +269,7 @@ void* malloc(size_t size) {
  * <Are there any preconditions or postconditions?>
  */
 void free(void* bp) {
-  printf("---------- %s bp=%p ----------\n", __func__, bp);
+  printf("-------------------- %s bp=%p --------------------\n", __func__, bp);
   dbg_requires(mm_checkheap(__LINE__));
 
   if (bp == NULL) {
@@ -553,6 +553,7 @@ static void split_block(block_t* block, size_t asize) {
   /* TODO: Can you write a precondition about the value of asize? */
 
   size_t block_size = get_size(block);
+  printf("%s, block_size=%zu, asize=%zu\n", __func__, block_size, asize);
 
   if ((block_size - asize) >= min_block_size) {
     block_t* block_next;
@@ -580,6 +581,20 @@ static void split_block(block_t* block, size_t asize) {
       ((word_t*)header_to_payload(next_block))[1] = (word_t)block_next;
     } else {
       ((word_t*)header_to_payload(block_next))[0] = (word_t)NULL;
+    }
+  } else {
+    block_t* next_block = (block_t*)((word_t*)header_to_payload(block))[0];
+    block_t* prev_block = (block_t*)((word_t*)header_to_payload(block))[1];
+    printf("%s block[0]]=next_block=%p block[1]=prev_block=%p\n", __func__, next_block,
+      prev_block);
+    if (prev_block != NULL) {
+      ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+    }
+    if (next_block != NULL) {
+      ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+    }
+    if (prev_block == next_block) {
+      free_list_head = NULL;
     }
   }
   printf("%s free_list_head=%p \n", __func__, free_list_head);
