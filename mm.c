@@ -438,7 +438,9 @@ static block_t* coalesce_block(block_t* block) {
     if (prev_size != 0 || next_size != 0) {
       ((word_t*)header_to_payload(block))[0] = (word_t)free_list_head;
       ((word_t*)header_to_payload(block))[1] = (word_t)NULL;
-      ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block;
+      if (free_list_head != NULL) {
+        ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block;
+      }
     }
   }
 
@@ -595,6 +597,8 @@ static void split_block(block_t* block, size_t asize) {
     }
     if (prev_block == next_block) {
       free_list_head = NULL;
+    } else if (prev_block == NULL) {
+      free_list_head = next_block;
     }
   }
   printf("%s free_list_head=%p \n", __func__, free_list_head);
