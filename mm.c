@@ -158,8 +158,6 @@ static word_t* header_to_footer(block_t* block);
 static block_t* find_next(block_t* block);
 static word_t* find_prev_footer(block_t* block);
 static block_t* find_prev(block_t* block);
-static block_t* find_next_free(block_t* block_start);
-static block_t* find_prev_free(block_t* block_start);
 
 static bool has_loop(block_t* block);
 
@@ -457,12 +455,18 @@ static block_t* coalesce_block(block_t* block) {
       ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
     }
     if (next_block != NULL) {
-      ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+      if (prev_block != NULL) {
+        ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+      }
     }
     //splice out adjacent successor block, coalsece both memory blocks
     printf("%s block=%p, free_list_head=%p, block_next=%p\n", __func__, block, free_list_head, block_next);
     if (block_next == free_list_head) {
-      ((word_t*)header_to_payload(block))[0] = (word_t)((word_t*)header_to_payload(free_list_head))[0];
+      ((word_t*)header_to_payload(block))[0] = ((word_t*)header_to_payload(block_next))[0];
+      if ((block_t*)((word_t*)header_to_payload(block))[0] != NULL) {
+        block_t* next_block = (block_t*)((word_t*)header_to_payload(block))[0];
+        ((word_t*)header_to_payload(next_block))[1] = (word_t)block;
+      }
     } else {
       ((word_t*)header_to_payload(block))[0] = (word_t)free_list_head;
       ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block;
@@ -484,11 +488,16 @@ static block_t* coalesce_block(block_t* block) {
       ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
     }
     if (next_block != NULL) {
-      ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+      if (prev_block != NULL) {
+        ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+      }
     }
     printf("%s block_prev=%p, free_list_head=%p \n", __func__, block_prev, free_list_head);
     if (block_prev == free_list_head) {
-      ((word_t*)header_to_payload(block_prev))[0] = (word_t)NULL;
+      if ((block_t*)((word_t*)header_to_payload(block_prev))[0] != NULL) {
+        block_t* next_block = (block_t*)((word_t*)header_to_payload(block_prev))[0];
+        ((word_t*)header_to_payload(next_block))[1] = (word_t)block_prev;
+      }
     } else {
       ((word_t*)header_to_payload(block_prev))[0] = (word_t)free_list_head;
       ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block_prev;
@@ -508,27 +517,60 @@ static block_t* coalesce_block(block_t* block) {
     block_t* prev_block = (block_t*)((word_t*)header_to_payload(block_prev))[1];
     printf("%s block_prev[0]=next_block=%p block_prev[1]=prev_block=%p\n", __func__, next_block,
       prev_block);
-    if (prev_block != NULL) {
-      ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
-    }
-    if (next_block != NULL) {
-      ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
-    }
-
-    next_block = (block_t*)((word_t*)header_to_payload(block_next))[0];
-    prev_block = (block_t*)((word_t*)header_to_payload(block_next))[1];
-    printf("%s block_next[0]=next_block=%p block_next[1]=prev_block=%p\n", __func__, next_block,
-      prev_block);
-    if (prev_block && next_block != NULL) {
-      ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
-      ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
-    }
-
-    if (block_prev == free_list_head) {
-      ((word_t*)header_to_payload(block_prev))[0] = (word_t)NULL;
+    if (prev_block == block_next) {
+      if (prev_block == free_list_head) {
+        ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+        if (next_block != NULL) {
+          ((word_t*)header_to_payload(next_block))[1] = (word_t)block_prev;
+        }
+      } else {
+        block_t* pp_block = (block_t*)((word_t*)header_to_payload(prev_block))[1];
+        ((word_t*)header_to_payload(pp_block))[0] = (word_t)next_block;
+        if (next_block != NULL) {
+          ((word_t*)header_to_payload(next_block))[1] = (word_t)pp_block;
+        }
+      }
+    } else if (next_block == block_next) {
+      block_t* nn_block = (block_t*)((word_t*)header_to_payload(next_block))[0];
+      if (block_prev == free_list_head) {
+        ((word_t*)header_to_payload(block_prev))[0] = (word_t)nn_block;
+        if (nn_block != NULL) {
+          ((word_t*)header_to_payload(nn_block))[1] = (word_t)block_prev;
+        }
+      } else {
+        ((word_t*)header_to_payload(prev_block))[0] = (word_t)nn_block;
+        if (nn_block != NULL) {
+          ((word_t*)header_to_payload(nn_block))[1] = (word_t)prev_block;
+        }
+      }
     } else {
-      ((word_t*)header_to_payload(block_prev))[0] = (word_t)free_list_head;
-      ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block_prev;
+      block_t* temp_next_block = (block_t*)((word_t*)header_to_payload(block_next))[0];
+      block_t* temp_prev_block = (block_t*)((word_t*)header_to_payload(block_next))[1];
+      if (block_prev == free_list_head) {
+        ((word_t*)header_to_payload(temp_prev_block))[0] = (word_t)temp_next_block;
+        if (temp_next_block != NULL) {
+          ((word_t*)header_to_payload(temp_next_block))[1] = (word_t)temp_prev_block;
+        }
+      } else if (block_next == free_list_head) {
+        ((word_t*)header_to_payload(prev_block))[0] = (word_t)temp_next_block;
+        if (temp_next_block != NULL) {
+          ((word_t*)header_to_payload(temp_next_block))[1] = (word_t)prev_block;
+        }
+      } else {
+          ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+          if (next_block != NULL) {
+            ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+          }
+          ((word_t*)header_to_payload(temp_prev_block))[0] = (word_t)temp_next_block;
+          if (temp_next_block != NULL) {
+            ((word_t*)header_to_payload(temp_next_block))[1] = (word_t)temp_prev_block;
+          }
+      }
+    }
+
+    if (block_prev != free_list_head && block_next != free_list_head) {
+        ((word_t*)header_to_payload(block_prev))[0] = (word_t)free_list_head;
+        ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block_prev;
     }
     ((word_t*)header_to_payload(block_prev))[1] = (word_t)NULL;
 
@@ -539,6 +581,7 @@ static block_t* coalesce_block(block_t* block) {
 
   dbg_ensures(!get_alloc(block));
   /* TODO: Can you write a postcondition about get_size(block)? */
+  dbg_ensures(get_size(block) == size);
 
   return block;
 }
@@ -565,6 +608,7 @@ static void split_block(block_t* block, size_t asize) {
     block_next = find_next(block);
     write_header(block_next, block_size - asize, false);
     write_footer(block_next, block_size - asize, false);
+    printf("%s, block_next=%p size=%zu, asize=%zu\n", __func__, block_next, get_size(block_next), asize);
     // rebinding prev/next block relationship
     block_t* prev_block = (block_t*)((word_t*)header_to_payload(block))[1];
     printf("%s block=%p prev_block=%p \n", __func__, block, prev_block);
@@ -578,7 +622,7 @@ static void split_block(block_t* block, size_t asize) {
     block_t* next_block = (block_t*)((word_t*)header_to_payload(block))[0];
     if (next_block != NULL && block_next != next_block) {
       printf("%s, next_block=%p block_next=%p size=%zu\n", __func__, next_block, block_next,
-        get_size(next_block));
+        get_size(block_next));
       ((word_t*)header_to_payload(block_next))[0] = (word_t)next_block;
       ((word_t*)header_to_payload(next_block))[1] = (word_t)block_next;
     } else {
@@ -618,8 +662,8 @@ static block_t* find_fit(size_t asize) {
 
   for (block = free_list_head; (block != NULL && get_size(block) > 0);
        block = (block_t*)((word_t*)header_to_payload(block))[0]) {
-    if (!(get_alloc(block)) && (asize <= get_size(block))) {
-      printf("%s find a block at %p\n", __func__, block);
+    if (asize <= get_size(block)) {
+      printf("%s find a block size %zu at %p\n", __func__, get_size(block), block);
       return block;
     }
   }
@@ -666,15 +710,19 @@ bool mm_checkheap(int line) {
   for (block = heap_start; get_size(block) > 0; block = find_next(block)) {
     dbg_assert(block->header == *header_to_footer(block));
     dbg_assert((get_payload_size(block) % dsize) == 0);
-    if (!(get_alloc(block)) && !get_alloc(find_next(block))) {
-      printf("detect contiguous free blocks\n");
-      return false;
-    }
     if (!(get_alloc(block))) {  // free block case
-      block_t* next_block = find_next_free(block);
-      block_t* prev_block = find_prev_free(next_block);
-      if (block != prev_block) {
+      if (!get_alloc(find_next(block))) {
+        printf("detect contiguous free blocks\n");
         return false;
+      }
+      block_t* next_free_block = (block_t*)((word_t*)header_to_payload(block))[0];
+      if (next_free_block != NULL) {
+        block_t* prev_free_block = (block_t*)((word_t*)header_to_payload(next_free_block))[1];
+        if (block != prev_free_block) {
+          printf("detect block(%p), next(%p)/prev(%p) pointers in free block are inconsistent\n",
+            block, next_free_block, prev_free_block);
+          return false;
+        }
       }
     }
     if ((unsigned char*)block > mem_get_max_addr()) {
@@ -690,7 +738,7 @@ bool mm_checkheap(int line) {
 
   for (block = free_list_head; (block != NULL && get_size(block) > 0);
     block = (block_t*)((word_t*)header_to_payload(block))[0]) {
-    printf("%s free list block=%p\n", __func__, block);
+    printf("%s free list block=%p size=%zu\n", __func__, block, get_size(block));
     if (get_alloc(block)) {
       printf("detect free list has allocated block block=%p\n", block);
       return false;
@@ -841,28 +889,6 @@ static block_t* find_prev(block_t* block) {
   word_t* footerp = find_prev_footer(block);
   size_t size = extract_size(*footerp);
   return (block_t*)((char*)block - size);
-}
-
-static block_t* find_next_free(block_t* block_start) {
-  block_t* block;
-
-  for (block = block_start; get_size(block) > 0; block = find_next(block)) {
-    if (!(get_alloc(block))) {
-      return block;
-    }
-  }
-  return NULL;  // no fit found
-}
-
-static block_t* find_prev_free(block_t* block_start) {
-  block_t* block;
-
-  for (block = block_start; get_size(block) > 0; block = find_prev(block)) {
-    if (!(get_alloc(block))) {
-      return block;
-    }
-  }
-  return NULL;  // no fit found
 }
 
 /*

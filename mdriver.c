@@ -984,6 +984,7 @@ static bool eval_mm_valid(trace_t* trace, range_set_t* ranges) {
       case ALLOC: /* mm_malloc */
 
         /* Call the student's malloc */
+        printf("%s a %d %zu\n", __func__, index, size);
         if ((p = mm_malloc(size)) == NULL) {
           malloc_error(trace, i, "mm_malloc failed.");
           return false;
@@ -1009,6 +1010,7 @@ static bool eval_mm_valid(trace_t* trace, range_set_t* ranges) {
           allCheck = false;
         }
 
+        printf("%s r %zu\n", __func__, size);
         /* Call the student's realloc */
         oldp = trace->blocks[index];
         newp = mm_realloc(oldp, size);
@@ -1060,6 +1062,7 @@ static bool eval_mm_valid(trace_t* trace, range_set_t* ranges) {
           p = trace->blocks[index];
           remove_range(ranges, p);
         }
+        printf("%s f %d\n", __func__, index);
         mm_free(p);
         break;
 
