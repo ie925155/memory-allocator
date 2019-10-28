@@ -163,6 +163,8 @@ static bool has_loop(block_t* block);
 
 static block_t* find_next_free(block_t* block);
 static block_t* find_prev_free(block_t* block);
+static word_t* header_to_next(block_t* block);
+static word_t* header_to_prev(block_t* block);
 
 /*
  * <What does this function do?>
@@ -488,24 +490,25 @@ static block_t* coalesce_block(block_t* block) {
     block_t* prev_block = find_prev_free(block_prev);
     printf("%s next_block=%p prev_block=%p\n", __func__, next_block, prev_block);
     if (prev_block != NULL) {
-      ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+      //((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+      *header_to_next(prev_block) = (word_t)next_block;
     }
     if (next_block != NULL) {
       if (prev_block != NULL) {
-        ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+        *header_to_prev(next_block) = (word_t)prev_block;
       }
     }
     printf("%s block_prev=%p, free_list_head=%p \n", __func__, block_prev, free_list_head);
     if (block_prev == free_list_head) {
       if (find_next_free(block_prev) != NULL) {
         block_t* next_block = find_next_free(block_prev);
-        ((word_t*)header_to_payload(next_block))[1] = (word_t)block_prev;
+        *header_to_prev(next_block) = (word_t)block_prev;
       }
     } else {
-      ((word_t*)header_to_payload(block_prev))[0] = (word_t)free_list_head;
-      ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block_prev;
+      *header_to_next(block_prev) = (word_t)free_list_head;
+      *header_to_prev(free_list_head) = (word_t)block_prev;
     }
-    ((word_t*)header_to_payload(block_prev))[1] = (word_t)NULL;
+    *header_to_prev(block_prev) = (word_t)NULL;
 
     block = block_prev;
   }
@@ -522,60 +525,60 @@ static block_t* coalesce_block(block_t* block) {
       prev_block);
     if (prev_block == block_next) {
       if (prev_block == free_list_head) {
-        ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+        *header_to_next(prev_block) = (word_t)next_block;
         if (next_block != NULL) {
-          ((word_t*)header_to_payload(next_block))[1] = (word_t)block_prev;
+          *header_to_prev(next_block) = (word_t)block_prev;
         }
       } else {
         block_t* pp_block = find_prev_free(prev_block);
-        ((word_t*)header_to_payload(pp_block))[0] = (word_t)next_block;
+        *header_to_next(pp_block) = (word_t)next_block;
         if (next_block != NULL) {
-          ((word_t*)header_to_payload(next_block))[1] = (word_t)pp_block;
+          *header_to_prev(next_block) = (word_t)pp_block;
         }
       }
     } else if (next_block == block_next) {
       block_t* nn_block = find_next_free(next_block);
       if (block_prev == free_list_head) {
-        ((word_t*)header_to_payload(block_prev))[0] = (word_t)nn_block;
+        *header_to_next(block_prev) = (word_t)nn_block;
         if (nn_block != NULL) {
-          ((word_t*)header_to_payload(nn_block))[1] = (word_t)block_prev;
+          *header_to_prev(nn_block) = (word_t)block_prev;
         }
       } else {
-        ((word_t*)header_to_payload(prev_block))[0] = (word_t)nn_block;
+        *header_to_next(prev_block) = (word_t)nn_block;
         if (nn_block != NULL) {
-          ((word_t*)header_to_payload(nn_block))[1] = (word_t)prev_block;
+          *header_to_prev(nn_block) = (word_t)prev_block;
         }
       }
     } else {
       block_t* temp_next_block = find_next_free(block_next);
       block_t* temp_prev_block = find_prev_free(block_next);
       if (block_prev == free_list_head) {
-        ((word_t*)header_to_payload(temp_prev_block))[0] = (word_t)temp_next_block;
+        *header_to_next(temp_prev_block) = (word_t)temp_next_block;
         if (temp_next_block != NULL) {
-          ((word_t*)header_to_payload(temp_next_block))[1] = (word_t)temp_prev_block;
+          *header_to_prev(temp_next_block) = (word_t)temp_prev_block;
         }
       } else if (block_next == free_list_head) {
-        ((word_t*)header_to_payload(prev_block))[0] = (word_t)temp_next_block;
+        *header_to_next(prev_block) = (word_t)temp_next_block;
         if (temp_next_block != NULL) {
-          ((word_t*)header_to_payload(temp_next_block))[1] = (word_t)prev_block;
+          *header_to_prev(temp_next_block) = (word_t)prev_block;
         }
       } else {
-          ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+          *header_to_next(prev_block) = (word_t)next_block;
           if (next_block != NULL) {
-            ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+            *header_to_prev(next_block) = (word_t)prev_block;
           }
-          ((word_t*)header_to_payload(temp_prev_block))[0] = (word_t)temp_next_block;
+          *header_to_next(temp_prev_block) = (word_t)temp_next_block;
           if (temp_next_block != NULL) {
-            ((word_t*)header_to_payload(temp_next_block))[1] = (word_t)temp_prev_block;
+            *header_to_prev(temp_next_block) = (word_t)temp_prev_block;
           }
       }
     }
 
     if (block_prev != free_list_head && block_next != free_list_head) {
-        ((word_t*)header_to_payload(block_prev))[0] = (word_t)free_list_head;
-        ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block_prev;
+        *header_to_next(block_prev) = (word_t)free_list_head;
+        *header_to_prev(free_list_head) = (word_t)block_prev;
     }
-    ((word_t*)header_to_payload(block_prev))[1] = (word_t)NULL;
+    *header_to_prev(block_prev) = (word_t)NULL;
 
     block = block_prev;
   }
@@ -616,20 +619,20 @@ static void split_block(block_t* block, size_t asize) {
     block_t* prev_block = find_prev_free(block);
     printf("%s block=%p prev_block=%p \n", __func__, block, prev_block);
     if (prev_block != NULL) {
-      ((word_t*)header_to_payload(prev_block))[0] = (word_t)block_next;
-      ((word_t*)header_to_payload(block_next))[1] = (word_t)prev_block;
+      *header_to_next(prev_block) = (word_t)block_next;
+      *header_to_prev(block_next) = (word_t)prev_block;
     } else {
       free_list_head = block_next;
-      ((word_t*)header_to_payload(block_next))[1] = (word_t)NULL;
+      *header_to_prev(block_next) = (word_t)NULL;
     }
     block_t* next_block = find_next_free(block);
     if (next_block != NULL && block_next != next_block) {
       printf("%s, next_block=%p block_next=%p size=%zu\n", __func__, next_block, block_next,
         get_size(block_next));
-      ((word_t*)header_to_payload(block_next))[0] = (word_t)next_block;
-      ((word_t*)header_to_payload(next_block))[1] = (word_t)block_next;
+      *header_to_next(block_next) = (word_t)next_block;
+      *header_to_prev(next_block) = (word_t)block_next;
     } else {
-      ((word_t*)header_to_payload(block_next))[0] = (word_t)NULL;
+      *header_to_next(block_next) = (word_t)NULL;
     }
   } else {
     block_t* next_block = find_next_free(block);
@@ -637,10 +640,10 @@ static void split_block(block_t* block, size_t asize) {
     printf("%s block[0]]=next_block=%p block[1]=prev_block=%p\n", __func__, next_block,
       prev_block);
     if (prev_block != NULL) {
-      ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+      *header_to_next(prev_block) = (word_t)next_block;
     }
     if (next_block != NULL) {
-      ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+      *header_to_prev(next_block) = (word_t)prev_block;
     }
     if (prev_block == next_block) {
       free_list_head = NULL;
@@ -954,4 +957,12 @@ static block_t* find_next_free(block_t* block) {
 
 static block_t* find_prev_free(block_t* block) {
   return (block_t*)((word_t*)header_to_payload(block))[1];
+}
+
+static word_t* header_to_next(block_t* block) {
+  return &((word_t*)header_to_payload(block))[0];
+}
+
+static word_t* header_to_prev(block_t* block) {
+  return &((word_t*)header_to_payload(block))[1];
 }
