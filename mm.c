@@ -439,10 +439,10 @@ static block_t* coalesce_block(block_t* block) {
   if (prev_alloc && next_alloc)  // Case 1
   {
     if (prev_size != 0 || next_size != 0) {
-      ((word_t*)header_to_payload(block))[0] = (word_t)free_list_head;
-      ((word_t*)header_to_payload(block))[1] = (word_t)NULL;
+      *header_to_next(block) = (word_t)free_list_head;
+      *header_to_prev(block) = (word_t)NULL;
       if (free_list_head != NULL) {
-        ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block;
+        *header_to_prev(free_list_head) = (word_t)block;
       }
     }
   }
@@ -457,26 +457,26 @@ static block_t* coalesce_block(block_t* block) {
     block_t* prev_block = find_prev_free(block_next);
     printf("%s next_block=%p prev_block=%p\n", __func__, next_block, prev_block);
     if (prev_block != NULL) {
-      ((word_t*)header_to_payload(prev_block))[0] = (word_t)next_block;
+      *header_to_next(prev_block) = (word_t)next_block;
     }
     if (next_block != NULL) {
       if (prev_block != NULL) {
-        ((word_t*)header_to_payload(next_block))[1] = (word_t)prev_block;
+        *header_to_prev(next_block) = (word_t)prev_block;
       }
     }
     //splice out adjacent successor block, coalsece both memory blocks
     printf("%s block=%p, free_list_head=%p, block_next=%p\n", __func__, block, free_list_head, block_next);
     if (block_next == free_list_head) {
-      ((word_t*)header_to_payload(block))[0] = ((word_t*)header_to_payload(block_next))[0];
+      *header_to_next(block) = (word_t)find_next_free(block_next);
       if (find_next_free(block) != NULL) {
         block_t* next_block = find_next_free(block);
-        ((word_t*)header_to_payload(next_block))[1] = (word_t)block;
+        *header_to_prev(next_block) = (word_t)block;
       }
     } else {
-      ((word_t*)header_to_payload(block))[0] = (word_t)free_list_head;
-      ((word_t*)header_to_payload(free_list_head))[1] = (word_t)block;
+      *header_to_next(block) = (word_t)free_list_head;
+      *header_to_prev(free_list_head) = (word_t)block;
     }
-    ((word_t*)header_to_payload(block))[1] = (word_t)NULL;
+    *header_to_prev(block) = (word_t)NULL;
   }
 
   else if (!prev_alloc && next_alloc)  // Case 3
